@@ -75,6 +75,17 @@ barcode-app/
   - `M4018-28` ✅ (valid)
   - `M4018-028` ✅ (valid - zeros after delimiters are allowed)
 
+## macOS: Opening Unsigned App
+
+The macOS build is not code-signed (requires Apple Developer account). Gatekeeper may block it.
+
+**Option 1:** Remove quarantine attribute:
+```bash
+xattr -cr ~/Downloads/Barcode-Generator-*.dmg
+```
+
+**Option 2:** Right-click the app → "Open" → click "Open" in the security dialog.
+
 ## Output Format
 
 - Word document (.docx)
