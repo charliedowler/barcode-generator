@@ -6,6 +6,17 @@ const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCe
 
 let mainWindow;
 
+// For E2E testing: allow mocking the save dialog
+let mockSaveDialogResponse = null;
+
+function setMockSaveDialog(response) {
+  mockSaveDialogResponse = response;
+}
+
+function clearMockSaveDialog() {
+  mockSaveDialogResponse = null;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 800,
@@ -176,35 +187,55 @@ ipcMain.handle('generate-document', async (event, codesText) => {
     .split('\n')
     .map(c => c.trim())
     .filter(c => c.length > 0);
-  
+
   // Validate first
   const errors = validateCodes(codes);
   if (errors.length > 0) {
     return { success: false, errors };
   }
-  
+
   try {
     const buffer = await createDocument(codes);
-    
+
     // Generate default filename with date and time
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
     const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-'); // HH-MM-SS
     const defaultFilename = `barcode_${dateStr}_${timeStr}.docx`;
 
-    // Ask user where to save
-    const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: defaultFilename,
-      filters: [{ name: 'Word Document', extensions: ['docx'] }]
-    });
-    
+    let filePath, canceled;
+
+    // Use mock response if set (for E2E testing), otherwise show real dialog
+    if (mockSaveDialogResponse !== null) {
+      filePath = mockSaveDialogResponse.filePath;
+      canceled = mockSaveDialogResponse.canceled;
+    } else {
+      const result = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: defaultFilename,
+        filters: [{ name: 'Word Document', extensions: ['docx'] }]
+      });
+      filePath = result.filePath;
+      canceled = result.canceled;
+    }
+
     if (canceled || !filePath) {
       return { success: false, canceled: true };
     }
-    
+
     fs.writeFileSync(filePath, buffer);
     return { success: true, filePath };
   } catch (err) {
     return { success: false, error: err.message };
   }
+});
+
+// IPC handlers for E2E testing
+ipcMain.handle('e2e:set-mock-save-dialog', (event, response) => {
+  setMockSaveDialog(response);
+  return true;
+});
+
+ipcMain.handle('e2e:clear-mock-save-dialog', () => {
+  clearMockSaveDialog();
+  return true;
 });

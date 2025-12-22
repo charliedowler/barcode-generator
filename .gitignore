@@ -3,3 +3,7 @@ dist/
 test-output.docx
 *.log
 .DS_Store
+
+# Playwright
+playwright-report/
+test-results/

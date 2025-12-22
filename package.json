@@ -5,6 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build": "electron-builder --win --mac"
@@ -44,6 +46,7 @@
     "docx": "^9.5.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "electron": "^39.2.7",
     "electron-builder": "^26.0.12"
   }
