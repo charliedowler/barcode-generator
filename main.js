@@ -57,7 +57,7 @@ async function generateBarcode(code) {
 }
 
 // Create the Word document with barcodes in a grid
-async function createDocument(codes, columnsPerRow = 3) {
+async function createDocument(codes, columnsPerRow = 4) {
   const barcodes = [];
   
   // Generate all barcodes
@@ -69,9 +69,9 @@ async function createDocument(codes, columnsPerRow = 3) {
   // Create rows for the table (3 columns per row)
   const rows = [];
   
-  // Width per cell: 2.21cm = ~1253 twips (DXA), but we'll use page width / 3
-  // A4 page width with margins: ~9360 DXA for letter, let's use 3000 per cell
-  const cellWidth = 3000;
+  // Usable page width: ~10800 DXA (Letter width minus 0.5" margins)
+  // With 4 columns: 10800 / 4 = 2700 DXA per cell
+  const cellWidth = 2700;
   
   // Barcode image size: 2.21cm x 0.9cm = 83 x 34 points (at 72 dpi for docx)
   const barcodeWidth = 83;
@@ -134,10 +134,7 @@ async function createDocument(codes, columnsPerRow = 3) {
     sections: [{
       properties: {
         page: {
-          margin: { top: 720, right: 720, bottom: 720, left: 720 }, // 0.5 inch margins
-          size: {
-            orientation: PageOrientation.LANDSCAPE
-          }
+          margin: { top: 720, right: 720, bottom: 720, left: 720 } // 0.5 inch margins
         }
       },
       children: [

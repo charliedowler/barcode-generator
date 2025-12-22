@@ -30,7 +30,7 @@ async function generateBarcode(code) {
 }
 
 // Create document
-async function createDocument(codes, columnsPerRow = 3) {
+async function createDocument(codes, columnsPerRow = 4) {
   const barcodes = [];
   
   for (const code of codes) {
@@ -40,7 +40,7 @@ async function createDocument(codes, columnsPerRow = 3) {
   }
   
   const rows = [];
-  const cellWidth = 3000;
+  const cellWidth = 2700;
   const barcodeWidth = 83;
   const barcodeHeight = 34;
   
@@ -100,10 +100,7 @@ async function createDocument(codes, columnsPerRow = 3) {
     sections: [{
       properties: {
         page: {
-          margin: { top: 720, right: 720, bottom: 720, left: 720 },
-          size: {
-            orientation: PageOrientation.LANDSCAPE
-          }
+          margin: { top: 720, right: 720, bottom: 720, left: 720 }
         }
       },
       children: [
