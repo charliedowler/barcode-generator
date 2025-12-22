@@ -99,10 +99,11 @@ async function createDocument(codes, columnsPerRow = 3) {
           new TableCell({
             borders: cellBorders,
             width: { size: cellWidth, type: WidthType.DXA },
+            margins: { top: 142, bottom: 142, left: 142, right: 142 },
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,
-                spacing: { before: 100, after: 50 },
+                spacing: { after: 50 },
                 children: [
                   new ImageRun({
                     type: 'png',
@@ -146,7 +147,15 @@ async function createDocument(codes, columnsPerRow = 3) {
       children: [
         new Table({
           columnWidths: Array(columnsPerRow).fill(cellWidth),
-          rows: rows
+          rows: rows,
+          borders: {
+            top: noBorder,
+            bottom: noBorder,
+            left: noBorder,
+            right: noBorder,
+            insideHorizontal: noBorder,
+            insideVertical: noBorder
+          }
         })
       ]
     }]
