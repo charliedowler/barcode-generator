@@ -4,261 +4,741 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Barcode Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --olive: #66661c;
+      --olive-light: #7a7a2e;
+      --olive-dark: #4a4a14;
+      --cream: #f7f5f0;
+      --cream-dark: #e8e4db;
+      --ink: #1a1a18;
+      --ink-light: #3d3d38;
+      --paper: #fdfcf9;
+      --error: #8b2635;
+      --success: #2d5a27;
+      --warning: #8b6914;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-    
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-      background: #f5f5f5;
-      padding: 20px;
+      font-family: 'IBM Plex Mono', monospace;
+      background: var(--cream);
       min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
     }
-    
-    .container {
-      max-width: 700px;
+
+    /* Animated barcode background */
+    .barcode-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      opacity: 0.04;
+      overflow: hidden;
+    }
+
+    .barcode-line {
+      position: absolute;
+      background: var(--ink);
+      animation: scan 8s linear infinite;
+    }
+
+    @keyframes scan {
+      0% { opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { opacity: 0.3; }
+    }
+
+    /* Header strip */
+    .header-strip {
+      background: var(--olive);
+      padding: 12px 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header-strip::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.1) 2px,
+        rgba(0,0,0,0.1) 4px
+      );
+    }
+
+    .header-content {
+      max-width: 720px;
       margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: relative;
     }
-    
-    h1 {
-      color: #333;
-      margin-bottom: 8px;
-      font-size: 24px;
+
+    .header-icon {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
     }
-    
-    .subtitle {
-      color: #666;
-      margin-bottom: 20px;
-      font-size: 14px;
-    }
-    
-    .input-section {
-      background: white;
-      border-radius: 8px;
-      padding: 20px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      margin-bottom: 20px;
-    }
-    
-    label {
+
+    .header-icon span {
       display: block;
-      font-weight: 500;
-      margin-bottom: 8px;
-      color: #333;
+      height: 3px;
+      background: var(--cream);
+      border-radius: 1px;
     }
-    
+
+    .header-icon span:nth-child(1) { width: 100%; }
+    .header-icon span:nth-child(2) { width: 60%; }
+    .header-icon span:nth-child(3) { width: 100%; }
+    .header-icon span:nth-child(4) { width: 40%; }
+    .header-icon span:nth-child(5) { width: 100%; }
+
+    .header-title {
+      color: var(--cream);
+      font-family: 'Space Mono', monospace;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .header-badge {
+      margin-left: auto;
+      background: var(--olive-dark);
+      color: var(--cream);
+      font-size: 10px;
+      padding: 4px 10px;
+      border-radius: 2px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* Main container */
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 40px 24px 60px;
+      position: relative;
+    }
+
+    /* Label card */
+    .label-card {
+      background: var(--paper);
+      border: 2px solid var(--ink);
+      position: relative;
+      padding: 0;
+      box-shadow:
+        4px 4px 0 var(--ink),
+        8px 8px 0 var(--olive);
+      animation: cardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    @keyframes cardIn {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Perforated edge */
+    .label-card::before {
+      content: '';
+      position: absolute;
+      left: -2px;
+      top: 20px;
+      bottom: 20px;
+      width: 20px;
+      background: repeating-linear-gradient(
+        180deg,
+        transparent,
+        transparent 8px,
+        var(--cream) 8px,
+        var(--cream) 12px
+      );
+      border-right: 2px dashed var(--ink-light);
+    }
+
+    .card-header {
+      background: var(--ink);
+      color: var(--cream);
+      padding: 16px 24px 16px 44px;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .card-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    .card-subtitle {
+      font-size: 11px;
+      opacity: 0.6;
+      font-weight: 400;
+    }
+
+    .card-body {
+      padding: 24px 24px 24px 44px;
+    }
+
+    /* Textarea */
+    .input-group {
+      margin-bottom: 20px;
+    }
+
+    .input-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--ink-light);
+      margin-bottom: 10px;
+    }
+
     textarea {
       width: 100%;
-      height: 200px;
-      padding: 12px;
-      border: 2px solid #ddd;
-      border-radius: 6px;
-      font-family: 'Consolas', 'Monaco', monospace;
+      height: 180px;
+      padding: 16px;
+      border: 2px solid var(--cream-dark);
+      border-radius: 0;
+      font-family: 'IBM Plex Mono', monospace;
       font-size: 14px;
+      line-height: 1.6;
       resize: vertical;
-      transition: border-color 0.2s;
+      background: var(--cream);
+      color: var(--ink);
+      transition: all 0.2s ease;
     }
-    
+
+    textarea::placeholder {
+      color: var(--ink-light);
+      opacity: 0.5;
+    }
+
     textarea:focus {
       outline: none;
-      border-color: #007bff;
+      border-color: var(--olive);
+      background: var(--paper);
+      box-shadow: inset 0 0 0 2px rgba(102, 102, 28, 0.1);
     }
-    
-    .hint {
-      color: #888;
-      font-size: 12px;
-      margin-top: 8px;
+
+    .input-hint {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: var(--cream);
+      border-left: 3px solid var(--olive);
+      font-size: 11px;
+      color: var(--ink-light);
+      line-height: 1.5;
     }
-    
+
+    .input-hint::before {
+      content: '→';
+      color: var(--olive);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* Stats */
+    .stats-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-top: 1px dashed var(--cream-dark);
+      margin-top: 16px;
+    }
+
+    .stats-count {
+      font-size: 13px;
+      color: var(--ink-light);
+    }
+
+    .stats-count strong {
+      color: var(--olive);
+      font-weight: 700;
+    }
+
+    /* Buttons */
     .button-row {
       display: flex;
-      gap: 10px;
-      margin-top: 15px;
+      gap: 12px;
     }
-    
+
     button {
-      padding: 12px 24px;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 500;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 14px 28px;
+      border: 2px solid var(--ink);
       cursor: pointer;
-      transition: all 0.2s;
+      position: relative;
+      transition: all 0.15s ease;
     }
-    
+
     .btn-primary {
-      background: #007bff;
-      color: white;
+      background: var(--olive);
+      color: var(--cream);
+      border-color: var(--olive-dark);
     }
-    
+
+    .btn-primary::after {
+      content: '';
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      right: -4px;
+      bottom: -4px;
+      background: var(--ink);
+      z-index: -1;
+      transition: all 0.15s ease;
+    }
+
     .btn-primary:hover {
-      background: #0056b3;
+      background: var(--olive-light);
+      transform: translate(-2px, -2px);
     }
-    
+
+    .btn-primary:hover::after {
+      transform: translate(4px, 4px);
+    }
+
+    .btn-primary:active {
+      transform: translate(2px, 2px);
+    }
+
+    .btn-primary:active::after {
+      transform: translate(0, 0);
+    }
+
     .btn-primary:disabled {
-      background: #ccc;
+      background: var(--cream-dark);
+      color: var(--ink-light);
+      border-color: var(--cream-dark);
       cursor: not-allowed;
+      transform: none;
     }
-    
+
+    .btn-primary:disabled::after {
+      background: transparent;
+    }
+
     .btn-secondary {
-      background: #6c757d;
-      color: white;
+      background: transparent;
+      color: var(--ink);
+      border-color: var(--ink-light);
     }
-    
+
     .btn-secondary:hover {
-      background: #545b62;
+      background: var(--cream-dark);
+      border-color: var(--ink);
     }
-    
+
+    /* Status messages */
     .status {
-      margin-top: 20px;
-      padding: 15px;
-      border-radius: 6px;
+      margin-top: 24px;
+      padding: 16px 20px;
+      border: 2px solid;
+      position: relative;
       display: none;
+      animation: statusIn 0.3s ease forwards;
     }
-    
+
+    @keyframes statusIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .status::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+    }
+
     .status.error {
       display: block;
-      background: #f8d7da;
-      border: 1px solid #f5c6cb;
-      color: #721c24;
+      background: #fdf2f2;
+      border-color: var(--error);
+      color: var(--error);
     }
-    
+
+    .status.error::before {
+      background: var(--error);
+    }
+
     .status.success {
       display: block;
-      background: #d4edda;
-      border: 1px solid #c3e6cb;
-      color: #155724;
+      background: #f2f9f2;
+      border-color: var(--success);
+      color: var(--success);
     }
-    
+
+    .status.success::before {
+      background: var(--success);
+    }
+
     .status.warning {
       display: block;
-      background: #fff3cd;
-      border: 1px solid #ffeeba;
-      color: #856404;
+      background: #fffbf0;
+      border-color: var(--warning);
+      color: var(--warning);
     }
-    
+
+    .status.warning::before {
+      background: var(--warning);
+    }
+
+    .status-title {
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-title::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1s ease infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .status p {
+      font-size: 12px;
+      line-height: 1.6;
+      opacity: 0.9;
+    }
+
+    .status small {
+      display: block;
+      margin-top: 8px;
+      font-size: 11px;
+      opacity: 0.7;
+      word-break: break-all;
+    }
+
     .error-list {
-      margin-top: 10px;
-      padding-left: 20px;
+      margin: 12px 0 0 0;
+      padding: 0;
+      list-style: none;
     }
-    
+
     .error-list li {
-      margin-bottom: 5px;
+      padding: 8px 12px;
+      background: rgba(139, 38, 53, 0.08);
+      margin-bottom: 4px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
-    
-    .stats {
-      color: #666;
-      font-size: 13px;
-      margin-top: 10px;
+
+    .error-list li::before {
+      content: '×';
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .error-list code {
+      font-family: 'IBM Plex Mono', monospace;
+      background: rgba(139, 38, 53, 0.15);
+      padding: 2px 6px;
+      font-weight: 600;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 10px;
+      color: var(--ink-light);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.5;
+    }
+
+    /* Loading state */
+    .loading .btn-primary {
+      position: relative;
+      color: transparent;
+    }
+
+    .loading .btn-primary::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 16px;
+      height: 16px;
+      margin: -8px 0 0 -8px;
+      border: 2px solid var(--cream);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>📊 Barcode Generator</h1>
-    <p class="subtitle">Generate Code-128 barcodes and export to Word document</p>
-    
-    <div class="input-section">
-      <label for="codes">Enter codes (one per line):</label>
-      <textarea id="codes" placeholder="M4018-28
-M4018-29
-M4018-30"></textarea>
-      <p class="hint">Leading zeros after hyphens will be automatically removed (e.g., M4018-028 → M4018-28)</p>
-      <p class="stats" id="stats"></p>
-      
-      <div class="button-row">
-        <button class="btn-primary" id="generateBtn">Generate Document</button>
-        <button class="btn-secondary" id="clearBtn">Clear</button>
+  <!-- Decorative barcode background -->
+  <div class="barcode-bg" id="barcodeBg"></div>
+
+  <header class="header-strip">
+    <div class="header-content">
+      <div class="header-icon">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <span class="header-title">Barcode Generator</span>
+      <span class="header-badge">Code-128</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="label-card">
+      <div class="card-header">
+        <span class="card-title">Input Codes</span>
+        <span class="card-subtitle">Enter one code per line</span>
+      </div>
+
+      <div class="card-body">
+        <div class="input-group">
+          <label class="input-label" for="codes">Code List</label>
+          <textarea id="codes" placeholder="M4018-28&#10;M4018-29&#10;M4018-30"></textarea>
+          <div class="input-hint">
+            Leading zeros after hyphens are auto-corrected (M4018-028 → M4018-28)
+          </div>
+        </div>
+
+        <div class="stats-row">
+          <span class="stats-count" id="stats">Ready to generate</span>
+          <div class="button-row">
+            <button class="btn-secondary" id="clearBtn">Clear</button>
+            <button class="btn-primary" id="generateBtn">Generate</button>
+          </div>
+        </div>
+
+        <div class="status" id="status"></div>
       </div>
     </div>
-    
-    <div class="status" id="status"></div>
-  </div>
-  
+
+    <div class="footer">
+      Export to Microsoft Word Document
+    </div>
+  </main>
+
   <script>
+    // Generate barcode background lines
+    const barcodeBg = document.getElementById('barcodeBg');
+    for (let i = 0; i < 60; i++) {
+      const line = document.createElement('div');
+      line.className = 'barcode-line';
+      const width = Math.random() > 0.5 ? 2 : 4;
+      const left = 20 + (i * 15) + (Math.random() * 8);
+      const height = 60 + Math.random() * 40;
+      const top = Math.random() * 20;
+      const delay = Math.random() * 4;
+
+      line.style.width = width + 'px';
+      line.style.height = height + '%';
+      line.style.left = left + 'px';
+      line.style.top = top + '%';
+      line.style.animationDelay = delay + 's';
+      barcodeBg.appendChild(line);
+    }
+
     const codesInput = document.getElementById('codes');
     const generateBtn = document.getElementById('generateBtn');
     const clearBtn = document.getElementById('clearBtn');
     const statusDiv = document.getElementById('status');
     const statsDiv = document.getElementById('stats');
-    
+
+    function clearStatus() {
+      statusDiv.className = 'status';
+      while (statusDiv.firstChild) {
+        statusDiv.removeChild(statusDiv.firstChild);
+      }
+    }
+
+    function showStatus(type, title, message, filePath) {
+      clearStatus();
+      statusDiv.className = 'status ' + type;
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'status-title';
+      titleEl.textContent = title;
+      statusDiv.appendChild(titleEl);
+
+      const msgEl = document.createElement('p');
+      msgEl.textContent = message;
+      statusDiv.appendChild(msgEl);
+
+      if (filePath) {
+        const pathEl = document.createElement('small');
+        pathEl.textContent = filePath;
+        statusDiv.appendChild(pathEl);
+      }
+    }
+
+    function showValidationErrors(errors) {
+      clearStatus();
+      statusDiv.className = 'status error';
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'status-title';
+      titleEl.textContent = 'Validation Failed';
+      statusDiv.appendChild(titleEl);
+
+      const msgEl = document.createElement('p');
+      msgEl.textContent = 'The following codes have invalid leading zeros:';
+      statusDiv.appendChild(msgEl);
+
+      const listEl = document.createElement('ul');
+      listEl.className = 'error-list';
+
+      errors.forEach(function(err) {
+        const li = document.createElement('li');
+        const lineText = document.createTextNode('Line ' + err.line + ': ');
+        li.appendChild(lineText);
+
+        const codeEl = document.createElement('code');
+        codeEl.textContent = err.code;
+        li.appendChild(codeEl);
+
+        listEl.appendChild(li);
+      });
+
+      statusDiv.appendChild(listEl);
+    }
+
     // Update stats on input
-    codesInput.addEventListener('input', () => {
+    codesInput.addEventListener('input', function() {
       const codes = codesInput.value
         .split('\n')
-        .map(c => c.trim())
-        .filter(c => c.length > 0);
-      
-      statsDiv.textContent = codes.length > 0 
-        ? `${codes.length} code${codes.length === 1 ? '' : 's'} entered`
-        : '';
-      
-      // Clear any previous status
-      statusDiv.className = 'status';
-      statusDiv.innerHTML = '';
+        .map(function(c) { return c.trim(); })
+        .filter(function(c) { return c.length > 0; });
+
+      if (codes.length > 0) {
+        statsDiv.textContent = '';
+        const strong = document.createElement('strong');
+        strong.textContent = codes.length;
+        statsDiv.appendChild(strong);
+        statsDiv.appendChild(document.createTextNode(' code' + (codes.length === 1 ? '' : 's') + ' entered'));
+      } else {
+        statsDiv.textContent = 'Ready to generate';
+      }
+
+      clearStatus();
     });
-    
+
     // Clear button
-    clearBtn.addEventListener('click', () => {
+    clearBtn.addEventListener('click', function() {
       codesInput.value = '';
-      statsDiv.textContent = '';
-      statusDiv.className = 'status';
-      statusDiv.innerHTML = '';
+      statsDiv.textContent = 'Ready to generate';
+      clearStatus();
     });
-    
+
     // Generate button
-    generateBtn.addEventListener('click', async () => {
+    generateBtn.addEventListener('click', async function() {
       const codesText = codesInput.value;
-      
+
       if (!codesText.trim()) {
-        statusDiv.className = 'status warning';
-        statusDiv.innerHTML = 'Please enter at least one code.';
+        showStatus('warning', 'No Input', 'Please enter at least one code to generate barcodes.');
         return;
       }
-      
+
+      document.body.classList.add('loading');
       generateBtn.disabled = true;
       generateBtn.textContent = 'Validating...';
-      
+
       // First validate
       const validation = await window.api.validateCodes(codesText);
-      
+
       if (validation.errors.length > 0) {
+        document.body.classList.remove('loading');
         generateBtn.disabled = false;
-        generateBtn.textContent = 'Generate Document';
-        
-        statusDiv.className = 'status error';
-        statusDiv.innerHTML = `
-          <strong>⚠️ Invalid codes detected!</strong>
-          <p>Please fix the following codes that have leading zeros:</p>
-          <ul class="error-list">
-            ${validation.errors.map(e => `<li>Line ${e.line}: <code>${e.code}</code></li>`).join('')}
-          </ul>
-        `;
+        generateBtn.textContent = 'Generate';
+        showValidationErrors(validation.errors);
         return;
       }
-      
+
       generateBtn.textContent = 'Generating...';
-      
+
       const result = await window.api.generateDocument(codesText);
-      
+
+      document.body.classList.remove('loading');
       generateBtn.disabled = false;
-      generateBtn.textContent = 'Generate Document';
-      
+      generateBtn.textContent = 'Generate';
+
       if (result.canceled) {
-        statusDiv.className = 'status';
-        statusDiv.innerHTML = '';
+        clearStatus();
         return;
       }
-      
+
       if (result.success) {
-        statusDiv.className = 'status success';
-        statusDiv.innerHTML = `✅ Document saved successfully!<br><small>${result.filePath}</small>`;
+        showStatus('success', 'Export Complete', 'Your barcode document has been saved successfully.', result.filePath);
       } else {
-        statusDiv.className = 'status error';
-        statusDiv.innerHTML = `❌ Error: ${result.error || 'Unknown error'}`;
+        showStatus('error', 'Export Failed', result.error || 'An unknown error occurred.');
       }
     });
   </script>
