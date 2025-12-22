@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const bwipjs = require('bwip-js');
 const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, VerticalAlign, TableLayoutType } = require('docx');
+const PDFDocument = require('pdfkit');
+const ExcelJS = require('exceljs');
 
 let mainWindow;
 
@@ -171,6 +173,143 @@ async function createDocument(codes, columnsPerRow = 7) {
   return await Packer.toBuffer(doc);
 }
 
+// Create a PDF document with barcodes in a grid
+async function createPdfDocument(codes, columnsPerRow = 7) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const barcodes = [];
+
+      // Generate all barcodes
+      for (const code of codes) {
+        const pngBuffer = await generateBarcode(code);
+        barcodes.push({ code, buffer: pngBuffer });
+      }
+
+      // PDF dimensions (Letter size: 612 x 792 points)
+      const pageWidth = 612;
+      const pageHeight = 792;
+      const margin = 36; // 0.5 inch margins
+      const usableWidth = pageWidth - (margin * 2);
+      const cellWidth = usableWidth / columnsPerRow;
+
+      // Barcode dimensions (2.21cm x 0.9cm converted to points: 1cm = 28.35 points)
+      const barcodeWidth = 63;
+      const barcodeHeight = 26;
+      const cellHeight = 50; // Height per row including text
+
+      const doc = new PDFDocument({
+        size: 'LETTER',
+        margins: { top: margin, bottom: margin, left: margin, right: margin }
+      });
+
+      const chunks = [];
+      doc.on('data', chunk => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      let currentY = margin;
+      const rowsPerPage = Math.floor((pageHeight - margin * 2) / cellHeight);
+
+      for (let i = 0; i < barcodes.length; i += columnsPerRow) {
+        // Check if we need a new page
+        if (currentY + cellHeight > pageHeight - margin) {
+          doc.addPage();
+          currentY = margin;
+        }
+
+        for (let j = 0; j < columnsPerRow; j++) {
+          const idx = i + j;
+          if (idx < barcodes.length) {
+            const { code, buffer } = barcodes[idx];
+            const x = margin + (j * cellWidth);
+            const centerX = x + (cellWidth - barcodeWidth) / 2;
+
+            // Draw barcode image
+            doc.image(buffer, centerX, currentY, {
+              width: barcodeWidth,
+              height: barcodeHeight
+            });
+
+            // Draw code text below barcode
+            doc.fontSize(7)
+               .font('Helvetica')
+               .text(code, x, currentY + barcodeHeight + 2, {
+                 width: cellWidth,
+                 align: 'center'
+               });
+          }
+        }
+
+        currentY += cellHeight;
+      }
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// Create an Excel document with barcodes
+async function createExcelDocument(codes, columnsPerRow = 7) {
+  const barcodes = [];
+
+  // Generate all barcodes
+  for (const code of codes) {
+    const pngBuffer = await generateBarcode(code);
+    barcodes.push({ code, buffer: pngBuffer });
+  }
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Barcode Generator';
+  workbook.created = new Date();
+
+  const worksheet = workbook.addWorksheet('Barcodes');
+
+  // Set column widths (approximately 2.21cm in Excel units)
+  for (let i = 1; i <= columnsPerRow; i++) {
+    worksheet.getColumn(i).width = 15;
+  }
+
+  let rowIndex = 1;
+  let imageId = 0;
+
+  for (let i = 0; i < barcodes.length; i += columnsPerRow) {
+    // Set row heights - barcode row is taller, text row is shorter
+    worksheet.getRow(rowIndex).height = 45;
+    worksheet.getRow(rowIndex + 1).height = 15;
+
+    for (let j = 0; j < columnsPerRow; j++) {
+      const idx = i + j;
+      if (idx < barcodes.length) {
+        const { code, buffer } = barcodes[idx];
+        const col = j + 1;
+
+        // Add barcode image
+        const imgId = workbook.addImage({
+          buffer: buffer,
+          extension: 'png',
+        });
+
+        worksheet.addImage(imgId, {
+          tl: { col: j + 0.1, row: rowIndex - 1 + 0.1 },
+          ext: { width: 85, height: 35 }
+        });
+
+        // Add code text in the row below
+        const textCell = worksheet.getCell(rowIndex + 1, col);
+        textCell.value = code;
+        textCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        textCell.font = { name: 'Arial', size: 8 };
+      }
+    }
+
+    rowIndex += 2; // Move to next barcode row (skip text row)
+  }
+
+  return await workbook.xlsx.writeBuffer();
+}
+
 // IPC handlers
 ipcMain.handle('validate-codes', async (event, codesText) => {
   const codes = codesText
@@ -182,7 +321,7 @@ ipcMain.handle('validate-codes', async (event, codesText) => {
   return { codes, errors };
 });
 
-ipcMain.handle('generate-document', async (event, codesText) => {
+ipcMain.handle('generate-document', async (event, codesText, format = 'docx') => {
   const codes = codesText
     .split('\n')
     .map(c => c.trim())
@@ -195,13 +334,35 @@ ipcMain.handle('generate-document', async (event, codesText) => {
   }
 
   try {
-    const buffer = await createDocument(codes);
+    // Generate document based on format
+    let buffer;
+    let filterName;
+    let extension;
+
+    switch (format) {
+      case 'pdf':
+        buffer = await createPdfDocument(codes);
+        filterName = 'PDF Document';
+        extension = 'pdf';
+        break;
+      case 'xlsx':
+        buffer = await createExcelDocument(codes);
+        filterName = 'Excel Workbook';
+        extension = 'xlsx';
+        break;
+      case 'docx':
+      default:
+        buffer = await createDocument(codes);
+        filterName = 'Word Document';
+        extension = 'docx';
+        break;
+    }
 
     // Generate default filename with date and time
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
     const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-'); // HH-MM-SS
-    const defaultFilename = `barcode_${dateStr}_${timeStr}.docx`;
+    const defaultFilename = `barcode_${dateStr}_${timeStr}.${extension}`;
 
     let filePath, canceled;
 
@@ -212,7 +373,7 @@ ipcMain.handle('generate-document', async (event, codesText) => {
     } else {
       const result = await dialog.showSaveDialog(mainWindow, {
         defaultPath: defaultFilename,
-        filters: [{ name: 'Word Document', extensions: ['docx'] }]
+        filters: [{ name: filterName, extensions: [extension] }]
       });
       filePath = result.filePath;
       canceled = result.canceled;
