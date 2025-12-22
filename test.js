@@ -41,8 +41,9 @@ async function createDocument(codes, columnsPerRow = 4) {
   
   const rows = [];
   const cellWidth = 2700;
-  const barcodeWidth = 83;
-  const barcodeHeight = 34;
+  // Barcode image size: 2.21cm x 0.9cm (1cm = 28.35 points)
+  const barcodeWidth = 63;   // 2.21cm
+  const barcodeHeight = 26;  // 0.9cm
   
   const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
   const cellBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
@@ -59,7 +60,7 @@ async function createDocument(codes, columnsPerRow = 4) {
           new TableCell({
             borders: cellBorders,
             width: { size: cellWidth, type: WidthType.DXA },
-            margins: { top: 142, bottom: 142, left: 142, right: 142 },
+            margins: { top: 284, bottom: 284, left: 284, right: 284 },  // 0.5cm each side = 1cm gap
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,
