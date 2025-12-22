@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const bwipjs = require('bwip-js');
-const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, PageOrientation } = require('docx');
+const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, VerticalAlign, TableLayoutType } = require('docx');
 
 let mainWindow;
 
@@ -57,7 +57,7 @@ async function generateBarcode(code) {
 }
 
 // Create the Word document with barcodes in a grid
-async function createDocument(codes, columnsPerRow = 4) {
+async function createDocument(codes, columnsPerRow = 7) {
   const barcodes = [];
   
   // Generate all barcodes
@@ -70,8 +70,8 @@ async function createDocument(codes, columnsPerRow = 4) {
   const rows = [];
   
   // Usable page width: ~10800 DXA (Letter width minus 0.5" margins)
-  // With 4 columns: 10800 / 4 = 2700 DXA per cell
-  const cellWidth = 2700;
+  // With 7 columns: 10800 / 7 = 1543 DXA per cell
+  const cellWidth = 1543;
   
   // Barcode image size: 2.21cm x 0.9cm (1cm = 28.35 points)
   const barcodeWidth = 63;   // 2.21cm
@@ -92,11 +92,12 @@ async function createDocument(codes, columnsPerRow = 4) {
           new TableCell({
             borders: cellBorders,
             width: { size: cellWidth, type: WidthType.DXA },
-            margins: { top: 284, bottom: 284, left: 284, right: 284 },  // 0.5cm each side = 1cm gap
+            margins: { top: 140, bottom: 140, left: 140, right: 140 },  // ~0.25cm each side = ~0.5cm gap
+            verticalAlign: VerticalAlign.CENTER,
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,
-                spacing: { after: 50 },
+                spacing: { after: 0 },
                 children: [
                   new ImageRun({
                     type: 'png',
@@ -107,9 +108,9 @@ async function createDocument(codes, columnsPerRow = 4) {
               }),
               new Paragraph({
                 alignment: AlignmentType.CENTER,
-                spacing: { after: 100 },
+                spacing: { before: 20, after: 0 },
                 children: [
-                  new TextRun({ text: code, size: 16, font: 'Arial' })
+                  new TextRun({ text: code, size: 14, font: 'Arial' })
                 ]
               })
             ]
@@ -141,6 +142,8 @@ async function createDocument(codes, columnsPerRow = 4) {
         new Table({
           columnWidths: Array(columnsPerRow).fill(cellWidth),
           rows: rows,
+          layout: TableLayoutType.FIXED,
+          alignment: AlignmentType.CENTER,
           borders: {
             top: noBorder,
             bottom: noBorder,
