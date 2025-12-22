@@ -5,10 +5,9 @@ A simple Electron app that generates Code-128 barcodes and exports them to a Wor
 ## Features
 
 - Enter codes one per line
-- Validates for accidental leading zeros (e.g., `04018-28` is invalid)
-- Automatically removes leading zeros after delimiters (e.g., `M4018-028` → `M4018-28`)
+- Validates for accidental leading zeros at start of code (e.g., `04018-28` is invalid)
 - Generates Code-128 barcodes
-- Exports to .docx with barcodes in a 3-column grid
+- Exports to .docx with barcodes in a 7-column grid
 - Each barcode shows the code text underneath
 - Barcode size: 2.21cm × 0.9cm
 
@@ -71,17 +70,15 @@ barcode-app/
 
 ## Validation Rules
 
-1. **Leading zeros at start of code** → Error, user must fix
-   - `04018-28` ❌ (invalid - starts with 0)
-   - `M4018-28` ✅ (valid)
-
-2. **Leading zeros after delimiters** → Auto-corrected
-   - `M4018-028` → `M4018-28` (automatically sanitised)
+- **Leading zeros at start of code** → Error, user must fix
+  - `04018-28` ❌ (invalid - starts with 0)
+  - `M4018-28` ✅ (valid)
+  - `M4018-028` ✅ (valid - zeros after delimiters are allowed)
 
 ## Output Format
 
 - Word document (.docx)
-- 3 barcodes per row
+- 7 barcodes per row
 - Each barcode: 2.21cm wide × 0.9cm tall
 - Code text displayed below each barcode
 - 0.5 inch page margins
