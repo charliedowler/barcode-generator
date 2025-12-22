@@ -1,0 +1,48 @@
+{
+  "name": "barcode-generator",
+  "version": "1.0.0",
+  "description": "Generate Code-128 barcodes and export to Word document",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build": "electron-builder --win --mac"
+  },
+  "build": {
+    "appId": "com.barcode.generator",
+    "productName": "Barcode Generator",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icns"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "keywords": ["barcode", "code128", "docx"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bwip-js": "^4.8.0",
+    "docx": "^9.5.1"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  }
+}

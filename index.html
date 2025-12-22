@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barcode Generator</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 24px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    
+    .input-section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    
+    textarea {
+      width: 100%;
+      height: 200px;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 14px;
+      resize: vertical;
+      transition: border-color 0.2s;
+    }
+    
+    textarea:focus {
+      outline: none;
+      border-color: #007bff;
+    }
+    
+    .hint {
+      color: #888;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #007bff;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #0056b3;
+    }
+    
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background: #545b62;
+    }
+    
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 6px;
+      display: none;
+    }
+    
+    .status.error {
+      display: block;
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+    
+    .status.success {
+      display: block;
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+    
+    .status.warning {
+      display: block;
+      background: #fff3cd;
+      border: 1px solid #ffeeba;
+      color: #856404;
+    }
+    
+    .error-list {
+      margin-top: 10px;
+      padding-left: 20px;
+    }
+    
+    .error-list li {
+      margin-bottom: 5px;
+    }
+    
+    .stats {
+      color: #666;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📊 Barcode Generator</h1>
+    <p class="subtitle">Generate Code-128 barcodes and export to Word document</p>
+    
+    <div class="input-section">
+      <label for="codes">Enter codes (one per line):</label>
+      <textarea id="codes" placeholder="M4018-28
+M4018-29
+M4018-30"></textarea>
+      <p class="hint">Leading zeros after hyphens will be automatically removed (e.g., M4018-028 → M4018-28)</p>
+      <p class="stats" id="stats"></p>
+      
+      <div class="button-row">
+        <button class="btn-primary" id="generateBtn">Generate Document</button>
+        <button class="btn-secondary" id="clearBtn">Clear</button>
+      </div>
+    </div>
+    
+    <div class="status" id="status"></div>
+  </div>
+  
+  <script>
+    const codesInput = document.getElementById('codes');
+    const generateBtn = document.getElementById('generateBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const statusDiv = document.getElementById('status');
+    const statsDiv = document.getElementById('stats');
+    
+    // Update stats on input
+    codesInput.addEventListener('input', () => {
+      const codes = codesInput.value
+        .split('\n')
+        .map(c => c.trim())
+        .filter(c => c.length > 0);
+      
+      statsDiv.textContent = codes.length > 0 
+        ? `${codes.length} code${codes.length === 1 ? '' : 's'} entered`
+        : '';
+      
+      // Clear any previous status
+      statusDiv.className = 'status';
+      statusDiv.innerHTML = '';
+    });
+    
+    // Clear button
+    clearBtn.addEventListener('click', () => {
+      codesInput.value = '';
+      statsDiv.textContent = '';
+      statusDiv.className = 'status';
+      statusDiv.innerHTML = '';
+    });
+    
+    // Generate button
+    generateBtn.addEventListener('click', async () => {
+      const codesText = codesInput.value;
+      
+      if (!codesText.trim()) {
+        statusDiv.className = 'status warning';
+        statusDiv.innerHTML = 'Please enter at least one code.';
+        return;
+      }
+      
+      generateBtn.disabled = true;
+      generateBtn.textContent = 'Validating...';
+      
+      // First validate
+      const validation = await window.api.validateCodes(codesText);
+      
+      if (validation.errors.length > 0) {
+        generateBtn.disabled = false;
+        generateBtn.textContent = 'Generate Document';
+        
+        statusDiv.className = 'status error';
+        statusDiv.innerHTML = `
+          <strong>⚠️ Invalid codes detected!</strong>
+          <p>Please fix the following codes that have leading zeros:</p>
+          <ul class="error-list">
+            ${validation.errors.map(e => `<li>Line ${e.line}: <code>${e.code}</code></li>`).join('')}
+          </ul>
+        `;
+        return;
+      }
+      
+      generateBtn.textContent = 'Generating...';
+      
+      const result = await window.api.generateDocument(codesText);
+      
+      generateBtn.disabled = false;
+      generateBtn.textContent = 'Generate Document';
+      
+      if (result.canceled) {
+        statusDiv.className = 'status';
+        statusDiv.innerHTML = '';
+        return;
+      }
+      
+      if (result.success) {
+        statusDiv.className = 'status success';
+        statusDiv.innerHTML = `✅ Document saved successfully!<br><small>${result.filePath}</small>`;
+      } else {
+        statusDiv.className = 'status error';
+        statusDiv.innerHTML = `❌ Error: ${result.error || 'Unknown error'}`;
+      }
+    });
+  </script>
+</body>
+</html>
