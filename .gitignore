@@ -7,3 +7,6 @@ test-output.docx
 # Playwright
 playwright-report/
 test-results/
+
+# Claude Code
+.claude/
