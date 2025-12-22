@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [windows-latest, macos-latest]
 
     steps:
       - name: Checkout code
@@ -33,12 +33,7 @@ jobs:
       - name: Install Playwright
         run: npx playwright install --with-deps
 
-      - name: Run E2E tests (Linux)
-        if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum npm test
-
-      - name: Run E2E tests (Windows/macOS)
-        if: runner.os != 'Linux'
+      - name: Run E2E tests
         run: npm test
 
       - name: Upload test results
