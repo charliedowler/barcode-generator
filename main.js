@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const bwipjs = require('bwip-js');
-const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle } = require('docx');
+const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, PageOrientation } = require('docx');
 
 let mainWindow;
 
@@ -41,12 +41,6 @@ function validateCodes(codes) {
   return errors;
 }
 
-// Sanitise code - remove leading zeros from numeric segments after delimiters
-function sanitiseCode(code) {
-  // Remove leading zeros after hyphens or other delimiters
-  return code.replace(/(-|^)0+(\d)/g, '$1$2');
-}
-
 // Generate barcode as PNG buffer
 async function generateBarcode(code) {
   // 2.21cm x 0.9cm at 300 DPI = 261 x 106 pixels
@@ -68,9 +62,8 @@ async function createDocument(codes, columnsPerRow = 3) {
   
   // Generate all barcodes
   for (const code of codes) {
-    const sanitised = sanitiseCode(code);
-    const pngBuffer = await generateBarcode(sanitised);
-    barcodes.push({ code: sanitised, buffer: pngBuffer });
+    const pngBuffer = await generateBarcode(code);
+    barcodes.push({ code, buffer: pngBuffer });
   }
   
   // Create rows for the table (3 columns per row)
@@ -141,7 +134,10 @@ async function createDocument(codes, columnsPerRow = 3) {
     sections: [{
       properties: {
         page: {
-          margin: { top: 720, right: 720, bottom: 720, left: 720 } // 0.5 inch margins
+          margin: { top: 720, right: 720, bottom: 720, left: 720 }, // 0.5 inch margins
+          size: {
+            orientation: PageOrientation.LANDSCAPE
+          }
         }
       },
       children: [
@@ -190,9 +186,15 @@ ipcMain.handle('generate-document', async (event, codesText) => {
   try {
     const buffer = await createDocument(codes);
     
+    // Generate default filename with date and time
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-'); // HH-MM-SS
+    const defaultFilename = `barcode_${dateStr}_${timeStr}.docx`;
+
     // Ask user where to save
     const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: 'barcodes.docx',
+      defaultPath: defaultFilename,
       filters: [{ name: 'Word Document', extensions: ['docx'] }]
     });
     

@@ -1,15 +1,10 @@
 // Test script - run with: node test.js
 const fs = require('fs');
 const bwipjs = require('bwip-js');
-const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle } = require('docx');
+const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, PageOrientation } = require('docx');
 
 // Test codes
 const testCodes = ['M4018-28', 'M4018-29', 'M4018-030', 'ABC-001', 'TEST-123'];
-
-// Sanitise code - remove leading zeros from numeric segments after delimiters
-function sanitiseCode(code) {
-  return code.replace(/(-|^)0+(\d)/g, '$1$2');
-}
 
 // Validate codes
 function validateCodes(codes) {
@@ -39,10 +34,9 @@ async function createDocument(codes, columnsPerRow = 3) {
   const barcodes = [];
   
   for (const code of codes) {
-    const sanitised = sanitiseCode(code);
-    console.log(`  ${code} → ${sanitised}`);
-    const pngBuffer = await generateBarcode(sanitised);
-    barcodes.push({ code: sanitised, buffer: pngBuffer });
+    console.log(`  Processing: ${code}`);
+    const pngBuffer = await generateBarcode(code);
+    barcodes.push({ code, buffer: pngBuffer });
   }
   
   const rows = [];
@@ -106,7 +100,10 @@ async function createDocument(codes, columnsPerRow = 3) {
     sections: [{
       properties: {
         page: {
-          margin: { top: 720, right: 720, bottom: 720, left: 720 }
+          margin: { top: 720, right: 720, bottom: 720, left: 720 },
+          size: {
+            orientation: PageOrientation.LANDSCAPE
+          }
         }
       },
       children: [
@@ -134,12 +131,7 @@ async function main() {
   const invalidCodes = ['04018-28', 'M4018-29'];
   const errors = validateCodes(invalidCodes);
   console.log('  Errors:', errors);
-  
-  console.log('\nTesting sanitisation...');
-  console.log('  M4018-028 →', sanitiseCode('M4018-028'));
-  console.log('  ABC-001 →', sanitiseCode('ABC-001'));
-  console.log('  TEST-100 →', sanitiseCode('TEST-100'));
-  
+
   console.log('\nGenerating test document...');
   const buffer = await createDocument(testCodes);
   fs.writeFileSync('test-output.docx', buffer);
