@@ -1,111 +1,78 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const path = require('path');
+/**
+ * Script to generate example barcode files in all supported formats
+ * Run with: node scripts/generate-examples.js
+ */
+
 const fs = require('fs');
+const path = require('path');
 const bwipjs = require('bwip-js');
 const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, VerticalAlign, TableLayoutType } = require('docx');
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
 
-let mainWindow;
+const EXAMPLES_DIR = path.join(__dirname, '..', 'examples');
 
-// For E2E testing: allow mocking the save dialog
-let mockSaveDialogResponse = null;
-
-function setMockSaveDialog(response) {
-  mockSaveDialogResponse = response;
-}
-
-function clearMockSaveDialog() {
-  mockSaveDialogResponse = null;
-}
-
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
-    }
-  });
-  mainWindow.loadFile('index.html');
-}
-
-app.whenReady().then(createWindow);
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
-
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
-});
-
-// Validate codes - check for accidental leading zeros
-function validateCodes(codes) {
-  const errors = [];
-  codes.forEach((code, index) => {
-    // Check if code starts with a zero followed by digits (accidental leading zero)
-    if (/^0\d/.test(code)) {
-      errors.push({ line: index + 1, code, message: `Code "${code}" has a leading zero` });
-    }
-  });
-  return errors;
-}
+// Sample codes for examples
+const SAMPLE_CODES = [
+  'PROD-001',
+  'PROD-002',
+  'PROD-003',
+  'ITEM-A100',
+  'ITEM-B200',
+  'ITEM-C300',
+  'SKU-12345',
+  'SKU-67890',
+  'INV-2024-01',
+  'INV-2024-02',
+  'BOX-A1',
+  'BOX-A2',
+  'BOX-B1',
+  'BOX-B2'
+];
 
 // Generate barcode as PNG buffer
 async function generateBarcode(code) {
-  // 2.21cm x 0.9cm at 300 DPI = 261 x 106 pixels
-  // We'll generate at higher res for quality
   const png = await bwipjs.toBuffer({
     bcid: 'code128',
     text: code,
     scale: 3,
-    height: 8, // mm
-    includetext: false, // We'll add text in the document for better control
+    height: 8,
+    includetext: false,
     textxalign: 'center',
   });
   return png;
 }
 
-// Create the Word document with barcodes in a grid
-async function createDocument(codes, columnsPerRow = 7) {
+// Create Word document with barcodes
+async function createWordDocument(codes, columnsPerRow = 7) {
   const barcodes = [];
-  
-  // Generate all barcodes
+
   for (const code of codes) {
     const pngBuffer = await generateBarcode(code);
     barcodes.push({ code, buffer: pngBuffer });
   }
-  
-  // Create rows for the table (3 columns per row)
+
   const rows = [];
-  
-  // Usable page width: ~10800 DXA (Letter width minus 0.5" margins)
-  // With 7 columns: 10800 / 7 = 1543 DXA per cell
   const cellWidth = 1543;
-  
-  // Barcode image size: 2.21cm x 0.9cm (1cm = 28.35 points)
-  const barcodeWidth = 63;   // 2.21cm
-  const barcodeHeight = 26;  // 0.9cm
-  
+  const barcodeWidth = 63;
+  const barcodeHeight = 26;
+
   const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
   const cellBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
-  
+
   for (let i = 0; i < barcodes.length; i += columnsPerRow) {
     const rowCells = [];
-    
+
     for (let j = 0; j < columnsPerRow; j++) {
       const idx = i + j;
-      
+
       if (idx < barcodes.length) {
         const { code, buffer } = barcodes[idx];
         rowCells.push(
           new TableCell({
             borders: cellBorders,
             width: { size: cellWidth, type: WidthType.DXA },
-            margins: { top: 140, bottom: 140, left: 140, right: 140 },  // ~0.25cm each side = ~0.5cm gap
+            margins: { top: 140, bottom: 140, left: 140, right: 140 },
             verticalAlign: VerticalAlign.CENTER,
             children: [
               new Paragraph({
@@ -130,7 +97,6 @@ async function createDocument(codes, columnsPerRow = 7) {
           })
         );
       } else {
-        // Empty cell for padding
         rowCells.push(
           new TableCell({
             borders: cellBorders,
@@ -140,15 +106,15 @@ async function createDocument(codes, columnsPerRow = 7) {
         );
       }
     }
-    
+
     rows.push(new TableRow({ children: rowCells }));
   }
-  
+
   const doc = new Document({
     sections: [{
       properties: {
         page: {
-          margin: { top: 720, right: 720, bottom: 720, left: 720 } // 0.5 inch margins
+          margin: { top: 720, right: 720, bottom: 720, left: 720 }
         }
       },
       children: [
@@ -169,33 +135,29 @@ async function createDocument(codes, columnsPerRow = 7) {
       ]
     }]
   });
-  
+
   return await Packer.toBuffer(doc);
 }
 
-// Create a PDF document with barcodes in a grid
+// Create PDF document with barcodes
 async function createPdfDocument(codes, columnsPerRow = 7) {
   return new Promise(async (resolve, reject) => {
     try {
       const barcodes = [];
 
-      // Generate all barcodes
       for (const code of codes) {
         const pngBuffer = await generateBarcode(code);
         barcodes.push({ code, buffer: pngBuffer });
       }
 
-      // PDF dimensions (Letter size: 612 x 792 points)
       const pageWidth = 612;
       const pageHeight = 792;
-      const margin = 36; // 0.5 inch margins
+      const margin = 36;
       const usableWidth = pageWidth - (margin * 2);
       const cellWidth = usableWidth / columnsPerRow;
-
-      // Barcode dimensions (2.21cm x 0.9cm converted to points: 1cm = 28.35 points)
       const barcodeWidth = 63;
       const barcodeHeight = 26;
-      const cellHeight = 50; // Height per row including text
+      const cellHeight = 50;
 
       const doc = new PDFDocument({
         size: 'LETTER',
@@ -208,10 +170,8 @@ async function createPdfDocument(codes, columnsPerRow = 7) {
       doc.on('error', reject);
 
       let currentY = margin;
-      const rowsPerPage = Math.floor((pageHeight - margin * 2) / cellHeight);
 
       for (let i = 0; i < barcodes.length; i += columnsPerRow) {
-        // Check if we need a new page
         if (currentY + cellHeight > pageHeight - margin) {
           doc.addPage();
           currentY = margin;
@@ -224,13 +184,11 @@ async function createPdfDocument(codes, columnsPerRow = 7) {
             const x = margin + (j * cellWidth);
             const centerX = x + (cellWidth - barcodeWidth) / 2;
 
-            // Draw barcode image
             doc.image(buffer, centerX, currentY, {
               width: barcodeWidth,
               height: barcodeHeight
             });
 
-            // Draw code text below barcode
             doc.fontSize(7)
                .font('Helvetica')
                .text(code, x, currentY + barcodeHeight + 2, {
@@ -250,11 +208,10 @@ async function createPdfDocument(codes, columnsPerRow = 7) {
   });
 }
 
-// Create an Excel document with barcodes
+// Create Excel document with barcodes
 async function createExcelDocument(codes, columnsPerRow = 7) {
   const barcodes = [];
 
-  // Generate all barcodes
   for (const code of codes) {
     const pngBuffer = await generateBarcode(code);
     barcodes.push({ code, buffer: pngBuffer });
@@ -266,16 +223,13 @@ async function createExcelDocument(codes, columnsPerRow = 7) {
 
   const worksheet = workbook.addWorksheet('Barcodes');
 
-  // Set column widths (approximately 2.21cm in Excel units)
   for (let i = 1; i <= columnsPerRow; i++) {
     worksheet.getColumn(i).width = 15;
   }
 
   let rowIndex = 1;
-  let imageId = 0;
 
   for (let i = 0; i < barcodes.length; i += columnsPerRow) {
-    // Set row heights - barcode row is taller, text row is shorter
     worksheet.getRow(rowIndex).height = 45;
     worksheet.getRow(rowIndex + 1).height = 15;
 
@@ -285,7 +239,6 @@ async function createExcelDocument(codes, columnsPerRow = 7) {
         const { code, buffer } = barcodes[idx];
         const col = j + 1;
 
-        // Add barcode image
         const imgId = workbook.addImage({
           buffer: buffer,
           extension: 'png',
@@ -296,7 +249,6 @@ async function createExcelDocument(codes, columnsPerRow = 7) {
           ext: { width: 85, height: 35 }
         });
 
-        // Add code text in the row below
         const textCell = worksheet.getCell(rowIndex + 1, col);
         textCell.value = code;
         textCell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -304,99 +256,51 @@ async function createExcelDocument(codes, columnsPerRow = 7) {
       }
     }
 
-    rowIndex += 2; // Move to next barcode row (skip text row)
+    rowIndex += 2;
   }
 
   return await workbook.xlsx.writeBuffer();
 }
 
-// IPC handlers
-ipcMain.handle('validate-codes', async (event, codesText) => {
-  const codes = codesText
-    .split('\n')
-    .map(c => c.trim())
-    .filter(c => c.length > 0);
-  
-  const errors = validateCodes(codes);
-  return { codes, errors };
-});
+// Main function to generate all examples
+async function generateExamples() {
+  console.log('Generating example barcode files...\n');
 
-ipcMain.handle('generate-document', async (event, codesText, format = 'docx') => {
-  const codes = codesText
-    .split('\n')
-    .map(c => c.trim())
-    .filter(c => c.length > 0);
-
-  // Validate first
-  const errors = validateCodes(codes);
-  if (errors.length > 0) {
-    return { success: false, errors };
+  // Ensure examples directory exists
+  if (!fs.existsSync(EXAMPLES_DIR)) {
+    fs.mkdirSync(EXAMPLES_DIR, { recursive: true });
   }
 
   try {
-    // Generate document based on format
-    let buffer;
-    let filterName;
-    let extension;
+    // Generate Word document
+    console.log('Generating Word document...');
+    const docxBuffer = await createWordDocument(SAMPLE_CODES);
+    const docxPath = path.join(EXAMPLES_DIR, 'example-barcodes.docx');
+    fs.writeFileSync(docxPath, docxBuffer);
+    console.log(`  Created: ${docxPath}`);
 
-    switch (format) {
-      case 'pdf':
-        buffer = await createPdfDocument(codes);
-        filterName = 'PDF Document';
-        extension = 'pdf';
-        break;
-      case 'xlsx':
-        buffer = await createExcelDocument(codes);
-        filterName = 'Excel Workbook';
-        extension = 'xlsx';
-        break;
-      case 'docx':
-      default:
-        buffer = await createDocument(codes);
-        filterName = 'Word Document';
-        extension = 'docx';
-        break;
-    }
+    // Generate PDF document
+    console.log('Generating PDF document...');
+    const pdfBuffer = await createPdfDocument(SAMPLE_CODES);
+    const pdfPath = path.join(EXAMPLES_DIR, 'example-barcodes.pdf');
+    fs.writeFileSync(pdfPath, pdfBuffer);
+    console.log(`  Created: ${pdfPath}`);
 
-    // Generate default filename with date and time
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
-    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-'); // HH-MM-SS
-    const defaultFilename = `barcode_${dateStr}_${timeStr}.${extension}`;
+    // Generate Excel document
+    console.log('Generating Excel document...');
+    const xlsxBuffer = await createExcelDocument(SAMPLE_CODES);
+    const xlsxPath = path.join(EXAMPLES_DIR, 'example-barcodes.xlsx');
+    fs.writeFileSync(xlsxPath, xlsxBuffer);
+    console.log(`  Created: ${xlsxPath}`);
 
-    let filePath, canceled;
+    console.log('\nAll examples generated successfully!');
+    console.log(`\nSample codes used (${SAMPLE_CODES.length} total):`);
+    SAMPLE_CODES.forEach(code => console.log(`  - ${code}`));
 
-    // Use mock response if set (for E2E testing), otherwise show real dialog
-    if (mockSaveDialogResponse !== null) {
-      filePath = mockSaveDialogResponse.filePath;
-      canceled = mockSaveDialogResponse.canceled;
-    } else {
-      const result = await dialog.showSaveDialog(mainWindow, {
-        defaultPath: defaultFilename,
-        filters: [{ name: filterName, extensions: [extension] }]
-      });
-      filePath = result.filePath;
-      canceled = result.canceled;
-    }
-
-    if (canceled || !filePath) {
-      return { success: false, canceled: true };
-    }
-
-    fs.writeFileSync(filePath, buffer);
-    return { success: true, filePath };
-  } catch (err) {
-    return { success: false, error: err.message };
+  } catch (error) {
+    console.error('Error generating examples:', error);
+    process.exit(1);
   }
-});
+}
 
-// IPC handlers for E2E testing
-ipcMain.handle('e2e:set-mock-save-dialog', (event, response) => {
-  setMockSaveDialog(response);
-  return true;
-});
-
-ipcMain.handle('e2e:clear-mock-save-dialog', () => {
-  clearMockSaveDialog();
-  return true;
-});
+generateExamples();

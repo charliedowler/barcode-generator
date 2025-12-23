@@ -64,6 +64,43 @@ test.describe('Barcode Generator App', () => {
     await expect(window.locator('#codes')).toBeVisible();
     await expect(window.locator('#generateBtn')).toBeVisible();
     await expect(window.locator('#clearBtn')).toBeVisible();
+    await expect(window.locator('#formatSelect')).toBeVisible();
+  });
+
+  test('should have format selector with correct options', async () => {
+    const formatSelect = window.locator('#formatSelect');
+
+    // Check default value is docx
+    await expect(formatSelect).toHaveValue('docx');
+
+    // Check all options are present
+    const options = formatSelect.locator('option');
+    await expect(options).toHaveCount(3);
+
+    await expect(options.nth(0)).toHaveAttribute('value', 'docx');
+    await expect(options.nth(0)).toHaveText('Word (.docx)');
+
+    await expect(options.nth(1)).toHaveAttribute('value', 'pdf');
+    await expect(options.nth(1)).toHaveText('PDF (.pdf)');
+
+    await expect(options.nth(2)).toHaveAttribute('value', 'xlsx');
+    await expect(options.nth(2)).toHaveText('Excel (.xlsx)');
+  });
+
+  test('should change format selection', async () => {
+    const formatSelect = window.locator('#formatSelect');
+
+    // Select PDF
+    await formatSelect.selectOption('pdf');
+    await expect(formatSelect).toHaveValue('pdf');
+
+    // Select Excel
+    await formatSelect.selectOption('xlsx');
+    await expect(formatSelect).toHaveValue('xlsx');
+
+    // Select Word again
+    await formatSelect.selectOption('docx');
+    await expect(formatSelect).toHaveValue('docx');
   });
 
   test('should update stats when entering codes', async () => {
@@ -279,6 +316,162 @@ test.describe('Document Generation', () => {
         await handlers.get('e2e:clear-mock-save-dialog')({});
       }
     });
+  });
+
+  test('should generate PDF document successfully', async () => {
+    const tempDir = os.tmpdir();
+    const outputPath = path.join(tempDir, `test-barcode-${Date.now()}.pdf`);
+
+    // Set mock save dialog
+    await electronApp.evaluate(async ({ ipcMain }, outputPath) => {
+      const handlers = ipcMain._invokeHandlers;
+      if (handlers && handlers.get('e2e:set-mock-save-dialog')) {
+        await handlers.get('e2e:set-mock-save-dialog')({}, { filePath: outputPath, canceled: false });
+      }
+    }, outputPath);
+
+    // Select PDF format
+    await window.locator('#formatSelect').selectOption('pdf');
+
+    // Enter valid codes
+    await window.fill('#codes', 'PDF-001\nPDF-002\nPDF-003');
+
+    // Click generate
+    await window.click('#generateBtn');
+
+    // Wait for generation to complete
+    await window.waitForTimeout(2000);
+
+    // Check for success message
+    const status = window.locator('#status');
+    await expect(status).toHaveClass(/success/);
+    await expect(status).toContainText('Export Complete');
+
+    // Verify the file was created
+    const fileExists = fs.existsSync(outputPath);
+    expect(fileExists).toBe(true);
+
+    // Verify it's a valid PDF file (should start with %PDF)
+    const fileContent = fs.readFileSync(outputPath);
+    expect(fileContent[0]).toBe(0x25); // '%'
+    expect(fileContent[1]).toBe(0x50); // 'P'
+    expect(fileContent[2]).toBe(0x44); // 'D'
+    expect(fileContent[3]).toBe(0x46); // 'F'
+
+    // Clean up
+    fs.unlinkSync(outputPath);
+
+    // Clear the mock and reset format
+    await electronApp.evaluate(async ({ ipcMain }) => {
+      const handlers = ipcMain._invokeHandlers;
+      if (handlers && handlers.get('e2e:clear-mock-save-dialog')) {
+        await handlers.get('e2e:clear-mock-save-dialog')({});
+      }
+    });
+    await window.locator('#formatSelect').selectOption('docx');
+  });
+
+  test('should generate Excel document successfully', async () => {
+    const tempDir = os.tmpdir();
+    const outputPath = path.join(tempDir, `test-barcode-${Date.now()}.xlsx`);
+
+    // Set mock save dialog
+    await electronApp.evaluate(async ({ ipcMain }, outputPath) => {
+      const handlers = ipcMain._invokeHandlers;
+      if (handlers && handlers.get('e2e:set-mock-save-dialog')) {
+        await handlers.get('e2e:set-mock-save-dialog')({}, { filePath: outputPath, canceled: false });
+      }
+    }, outputPath);
+
+    // Select Excel format
+    await window.locator('#formatSelect').selectOption('xlsx');
+
+    // Enter valid codes
+    await window.fill('#codes', 'XLS-001\nXLS-002\nXLS-003');
+
+    // Click generate
+    await window.click('#generateBtn');
+
+    // Wait for generation to complete
+    await window.waitForTimeout(2000);
+
+    // Check for success message
+    const status = window.locator('#status');
+    await expect(status).toHaveClass(/success/);
+    await expect(status).toContainText('Export Complete');
+
+    // Verify the file was created
+    const fileExists = fs.existsSync(outputPath);
+    expect(fileExists).toBe(true);
+
+    // Verify it's a valid xlsx file (should start with PK - zip signature, same as docx)
+    const fileContent = fs.readFileSync(outputPath);
+    expect(fileContent[0]).toBe(0x50); // 'P'
+    expect(fileContent[1]).toBe(0x4B); // 'K'
+
+    // Verify file size is reasonable
+    const fileSize = fs.statSync(outputPath).size;
+    expect(fileSize).toBeGreaterThan(1000);
+
+    // Clean up
+    fs.unlinkSync(outputPath);
+
+    // Clear the mock and reset format
+    await electronApp.evaluate(async ({ ipcMain }) => {
+      const handlers = ipcMain._invokeHandlers;
+      if (handlers && handlers.get('e2e:clear-mock-save-dialog')) {
+        await handlers.get('e2e:clear-mock-save-dialog')({});
+      }
+    });
+    await window.locator('#formatSelect').selectOption('docx');
+  });
+
+  test('should generate PDF with many codes', async () => {
+    const tempDir = os.tmpdir();
+    const outputPath = path.join(tempDir, `test-barcode-many-${Date.now()}.pdf`);
+
+    // Set mock save dialog
+    await electronApp.evaluate(async ({ ipcMain }, outputPath) => {
+      const handlers = ipcMain._invokeHandlers;
+      if (handlers && handlers.get('e2e:set-mock-save-dialog')) {
+        await handlers.get('e2e:set-mock-save-dialog')({}, { filePath: outputPath, canceled: false });
+      }
+    }, outputPath);
+
+    // Select PDF format
+    await window.locator('#formatSelect').selectOption('pdf');
+
+    // Enter 21 codes (should create multiple rows)
+    const codes = Array.from({ length: 21 }, (_, i) => `PDF-${String(i + 1).padStart(3, '0')}`).join('\n');
+    await window.fill('#codes', codes);
+
+    // Click generate
+    await window.click('#generateBtn');
+
+    // Wait for generation (may take longer with many codes)
+    await window.waitForTimeout(3000);
+
+    // Check for success
+    const status = window.locator('#status');
+    await expect(status).toHaveClass(/success/);
+
+    // Verify file exists and has content
+    const fileExists = fs.existsSync(outputPath);
+    expect(fileExists).toBe(true);
+
+    const fileSize = fs.statSync(outputPath).size;
+    expect(fileSize).toBeGreaterThan(1000);
+
+    // Clean up
+    fs.unlinkSync(outputPath);
+
+    await electronApp.evaluate(async ({ ipcMain }) => {
+      const handlers = ipcMain._invokeHandlers;
+      if (handlers && handlers.get('e2e:clear-mock-save-dialog')) {
+        await handlers.get('e2e:clear-mock-save-dialog')({});
+      }
+    });
+    await window.locator('#formatSelect').selectOption('docx');
   });
 });
 
