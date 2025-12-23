@@ -77,13 +77,13 @@ test.describe('Barcode Generator App', () => {
     const options = formatSelect.locator('option');
     await expect(options).toHaveCount(3);
 
-    await expect(options.nth(0)).toHaveValue('docx');
+    await expect(options.nth(0)).toHaveAttribute('value', 'docx');
     await expect(options.nth(0)).toHaveText('Word (.docx)');
 
-    await expect(options.nth(1)).toHaveValue('pdf');
+    await expect(options.nth(1)).toHaveAttribute('value', 'pdf');
     await expect(options.nth(1)).toHaveText('PDF (.pdf)');
 
-    await expect(options.nth(2)).toHaveValue('xlsx');
+    await expect(options.nth(2)).toHaveAttribute('value', 'xlsx');
     await expect(options.nth(2)).toHaveText('Excel (.xlsx)');
   });
 
