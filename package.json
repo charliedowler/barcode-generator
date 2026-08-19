@@ -10,7 +10,8 @@
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build": "electron-builder --win --mac",
-    "generate:examples": "node scripts/generate-examples.js"
+    "generate:examples": "node scripts/generate-examples.js",
+    "test:geometry": "node test.js"
   },
   "build": {
     "appId": "com.barcode.generator",
@@ -22,6 +23,7 @@
       "main.js",
       "preload.js",
       "index.html",
+      "label-sheet.js",
       "node_modules/**/*"
     ],
     "win": {
@@ -51,6 +53,7 @@
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "electron": "^39.2.7",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "jszip": "^3.10.1"
   }
 }

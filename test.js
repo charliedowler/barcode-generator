@@ -1,145 +1,72 @@
-// Test script - run with: node test.js
+// Geometry test - run with: node test.js
 const fs = require('fs');
-const bwipjs = require('bwip-js');
-const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, VerticalAlign, TableLayoutType } = require('docx');
+const JSZip = require('jszip');
+const { validateCodes, generateBarcode, createDocument } = require('./label-sheet');
 
-// Test codes
-const testCodes = ['M4018-28', 'M4018-29', 'M4018-030', 'ABC-001', 'TEST-123'];
+const failures = [];
 
-// Validate codes
-function validateCodes(codes) {
-  const errors = [];
-  codes.forEach((code, index) => {
-    if (/^0\d/.test(code)) {
-      errors.push({ line: index + 1, code, message: `Code "${code}" has a leading zero` });
-    }
-  });
-  return errors;
+function check(description, actual, expected) {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(`  ${pass ? 'ok  ' : 'FAIL'} ${description}${pass ? '' : ` — expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`}`);
+  if (!pass) failures.push(description);
 }
 
-// Generate barcode as PNG buffer
-async function generateBarcode(code) {
-  const png = await bwipjs.toBuffer({
-    bcid: 'code128',
-    text: code,
-    scale: 3,
-    height: 8,
-    includetext: false,
-  });
-  return png;
+function attribute(xml, element, name) {
+  const tag = xml.match(new RegExp(`<${element}[^>]*>`));
+  return tag ? (tag[0].match(new RegExp(`${name}="([^"]*)"`)) || [])[1] : undefined;
 }
 
-// Create document
-async function createDocument(codes, columnsPerRow = 7) {
-  const barcodes = [];
-  
-  for (const code of codes) {
-    console.log(`  Processing: ${code}`);
-    const pngBuffer = await generateBarcode(code);
-    barcodes.push({ code, buffer: pngBuffer });
-  }
-  
-  const rows = [];
-  // With 7 columns: 10800 / 7 = 1543 DXA per cell
-  const cellWidth = 1543;
-  // Barcode image size: 2.21cm x 0.9cm (1cm = 28.35 points)
-  const barcodeWidth = 63;   // 2.21cm
-  const barcodeHeight = 26;  // 0.9cm
-  
-  const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
-  const cellBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
-  
-  for (let i = 0; i < barcodes.length; i += columnsPerRow) {
-    const rowCells = [];
-    
-    for (let j = 0; j < columnsPerRow; j++) {
-      const idx = i + j;
-      
-      if (idx < barcodes.length) {
-        const { code, buffer } = barcodes[idx];
-        rowCells.push(
-          new TableCell({
-            borders: cellBorders,
-            width: { size: cellWidth, type: WidthType.DXA },
-            margins: { top: 140, bottom: 140, left: 140, right: 140 },  // ~0.25cm each side = ~0.5cm gap
-            verticalAlign: VerticalAlign.CENTER,
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 0 },
-                children: [
-                  new ImageRun({
-                    type: 'png',
-                    data: buffer,
-                    transformation: { width: barcodeWidth, height: barcodeHeight }
-                  })
-                ]
-              }),
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                spacing: { before: 20, after: 0 },
-                children: [
-                  new TextRun({ text: code, size: 14, font: 'Arial' })
-                ]
-              })
-            ]
-          })
-        );
-      } else {
-        rowCells.push(
-          new TableCell({
-            borders: cellBorders,
-            width: { size: cellWidth, type: WidthType.DXA },
-            children: [new Paragraph({ children: [] })]
-          })
-        );
-      }
-    }
-    
-    rows.push(new TableRow({ children: rowCells }));
-  }
-  
-  const doc = new Document({
-    sections: [{
-      properties: {
-        page: {
-          margin: { top: 720, right: 720, bottom: 720, left: 720 }
-        }
-      },
-      children: [
-        new Table({
-          columnWidths: Array(columnsPerRow).fill(cellWidth),
-          rows: rows,
-          layout: TableLayoutType.FIXED,
-          alignment: AlignmentType.CENTER,
-          borders: {
-            top: noBorder,
-            bottom: noBorder,
-            left: noBorder,
-            right: noBorder,
-            insideHorizontal: noBorder,
-            insideVertical: noBorder
-          }
-        })
-      ]
-    }]
-  });
-  
-  return await Packer.toBuffer(doc);
+async function testValidation() {
+  console.log('Validation');
+  check('flags a leading zero', validateCodes(['04018-28']).length, 1);
+  check('accepts a normal code', validateCodes(['M4018-29']).length, 0);
+  check('accepts a code that is only zeros-free', validateCodes(['0']).length, 0);
+}
+
+async function testBarcodeSizing() {
+  console.log('Barcode sizing');
+  const short = await generateBarcode('ABC123');
+  const long = await generateBarcode('M4182-02');
+  const overlong = await generateBarcode('LONGCODE-1234567890');
+
+  check('every barcode is 9mm tall', [short.heightEmu, long.heightEmu], [324000, 324000]);
+  check('width is module count x 0.18mm', long.widthEmu, 797040);
+  check('a shorter code gets a narrower barcode', short.widthEmu, 654480);
+  check('an overlong code is capped to fit the label', overlong.widthEmu <= 849630, true);
+}
+
+async function testSheetGeometry() {
+  console.log('Sheet geometry');
+  const codes = Array.from({ length: 190 }, (_, i) => `M${4000 + i}-01`);
+  const zip = await JSZip.loadAsync(await createDocument(codes));
+  const xml = await zip.file('word/document.xml').async('string');
+
+  check('A4 page', [attribute(xml, 'w:pgSz', 'w:w'), attribute(xml, 'w:pgSz', 'w:h')], ['11905', '16837']);
+  check('page margins', ['w:top', 'w:right', 'w:bottom', 'w:left'].map((a) => attribute(xml, 'w:pgMar', a)), ['765', '480', '0', '480']);
+  check('label and gutter columns alternate', (xml.match(/<w:gridCol w:w="(\d+)"\s*\/>/g) || []).slice(0, 13).map((m) => m.match(/\d+/)[0]),
+    ['1440', '144', '1440', '144', '1440', '144', '1440', '144', '1440', '144', '1440', '144', '1440']);
+  check('every row is locked to an exact height', [...new Set(xml.match(/<w:trHeight[^>]*>/g))].length, 1);
+  check('row height', attribute(xml, 'w:trHeight', 'w:val'), '566');
+  check('rows cannot split across pages', xml.match(/<w:cantSplit\s*\/>/g).length, 54);
+  check('fixed table layout', attribute(xml, 'w:tblLayout', 'w:type'), 'fixed');
+  check('one full sheet per page', (xml.match(/<w:tbl>/g) || []).length, 2);
+  check('190 codes spill onto a second sheet', (xml.match(/<w:sectPr/g) || []).length, 2);
+  check('no barcode is stretched or squashed vertically', [...new Set((xml.match(/<wp:extent cx="\d+" cy="(\d+)"/g) || []).map((m) => m.match(/cy="(\d+)"/)[1]))], ['324000']);
 }
 
 async function main() {
-  console.log('Testing validation...');
-  const invalidCodes = ['04018-28', 'M4018-29'];
-  const errors = validateCodes(invalidCodes);
-  console.log('  Errors:', errors);
+  await testValidation();
+  await testBarcodeSizing();
+  await testSheetGeometry();
 
-  console.log('\nGenerating test document...');
-  const buffer = await createDocument(testCodes);
-  fs.writeFileSync('test-output.docx', buffer);
-  console.log('  Saved to test-output.docx');
-  
-  console.log('\n✅ All tests passed!');
+  console.log('\nWriting sample sheet to test-output.docx');
+  fs.writeFileSync('test-output.docx', await createDocument(['M4018-28', 'M4018-29', 'M4018-030', 'ABC-001', 'TEST-123']));
+
+  if (failures.length > 0) {
+    console.error(`\n${failures.length} check(s) failed.`);
+    process.exit(1);
+  }
+  console.log('\nAll checks passed.');
 }
 
-main().catch(console.error);
+main().catch((err) => { console.error(err); process.exit(1); });
